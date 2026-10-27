@@ -1,0 +1,6 @@
+# Copy to .dev.vars (gitignored). Never commit actual values.
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+GOOGLE_REFRESH_TOKEN=""
+# Local identity is accepted only on loopback; send X-Local-Access-Email.
+# Production uses Cloudflare Access, OWNER_EMAIL and OAuth, not a shared token.

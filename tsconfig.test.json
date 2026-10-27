@@ -1,0 +1,10 @@
+{
+  // Tests run under Node, so they need Node's globals. Kept separate from the
+  // Worker config on purpose: pulling node types into src/ would let Node-only
+  // APIs typecheck in code that has to run on workerd.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types", "node"]
+  },
+  "include": ["worker-configuration.d.ts", "test/**/*.ts", "src/**/*.ts", "vitest.config.ts"]
+}

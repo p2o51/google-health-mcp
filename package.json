@@ -1,0 +1,39 @@
+{
+  "name": "health-mcp",
+  "version": "3.0.0",
+  "private": true,
+  "description": "MCP server exposing personal Google Health API data over Streamable HTTP",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local-protocol https",
+    "deploy": "node scripts/deploy.mjs",
+    "tail": "wrangler tail --format pretty",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "npm run test:regression && npm run test:oauth",
+    "authorize": "python3 scripts/authorize.py",
+    "inspect": "npx @modelcontextprotocol/inspector",
+    "test:regression": "node test/protocol.test.ts && node test/health.test.ts && node test/expanded.test.ts && node test/features.test.ts && node test/webhooks.test.ts",
+    "test:oauth": "vitest run --max-workers=1",
+    "types": "wrangler types --include-runtime=false"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-oauth-provider-legacy": "npm:@cloudflare/workers-oauth-provider@0.10.3",
+    "@cloudflare/workers-types": "^5.20260724.1",
+    "@types/node": "^26.1.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.141.0"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.4",
+    "jose": "6.2.8"
+  },
+  "overrides": {
+    "sharp": "0.35.4"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
