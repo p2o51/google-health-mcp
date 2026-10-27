@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { receiveWebhook, verifyGoogleSignature, derToRaw } from '../src/webhooks.ts';
+import { receiveWebhook, verifyGoogleSignature, derToRaw, importGooglePublicKey } from '../src/webhooks.ts';
 const {privateKey,publicKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});
 const jwk=publicKey.export({format:'jwk'});
 const protobuf=(tag:number,b:Uint8Array)=>Buffer.concat([Buffer.from([tag,b.length]),b]);
-const keyValue=Buffer.concat([protobuf(18,Buffer.from([8,3,16,2,24,1])),protobuf(26,Buffer.from(jwk.x!,'base64url')),protobuf(34,Buffer.from(jwk.y!,'base64url'))]);
+const keyValue=Buffer.concat([protobuf(18,Buffer.from([8,3,16,2,24,2])),protobuf(26,Buffer.from(jwk.x!,'base64url')),protobuf(34,Buffer.from(jwk.y!,'base64url'))]);
 const keys={key:[{status:'ENABLED',keyId:42,outputPrefixType:'TINK',keyData:{typeUrl:'type.googleapis.com/google.crypto.tink.EcdsaPublicKey',value:keyValue.toString('base64')}}]};
 const secret='test-secret-'.repeat(4);
 const marker={data:{healthUserId:'owner-id',operation:'UPSERT',dataType:'sleep'}};
@@ -51,4 +51,12 @@ test('bad notification batches are rejected and KV errors remain retryable',asyn
  assert.equal((await receiveWebhook(req(body),env,async()=>keys)).status,400);
  env.OAUTH_KV.put=async()=>{throw new Error('KV down');};body=JSON.stringify(marker);
  assert.equal((await receiveWebhook(req(body),env,async()=>keys)).status,503);
+});
+
+test('Google Tink leading-zero coordinates import and verify, unsupported encoding is rejected',async()=>{
+ const make=(encoding:number,pad:number)=>Buffer.concat([protobuf(18,Buffer.from([8,3,16,2,24,encoding])),protobuf(26,Buffer.concat([Buffer.from([pad]),Buffer.from(jwk.x!,'base64url')])),protobuf(34,Buffer.concat([Buffer.from([pad]),Buffer.from(jwk.y!,'base64url')]))]).toString('base64');
+ const padded={key:[{...keys.key[0]!,keyData:{...keys.key[0]!.keyData,value:make(2,0)}}]};
+ const raw=JSON.stringify(marker);assert.equal(await verifyGoogleSignature(Buffer.from(raw),signature(raw),padded),true);
+ await assert.rejects(importGooglePublicKey(make(1,0)),/parameters/);
+ await assert.rejects(importGooglePublicKey(make(2,1)),/coordinate/);
 });

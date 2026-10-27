@@ -32,6 +32,20 @@ export function derToRaw(der: Uint8Array): Uint8Array {
   }
   if(at!==der.length)throw new Error('Trailing DER data');return result;
 }
+/** Decode Google's Tink DER/P-256 key; coordinates may include a leading sign byte. */
+export async function importGooglePublicKey(value: string): Promise<CryptoKey> {
+  const key=proto(bytes(value)), params=key.get(2), x=key.get(3), y=key.get(4);
+  if((key.get(1)??0)!==0 || !(params instanceof Uint8Array) || !(x instanceof Uint8Array) || !(y instanceof Uint8Array))throw new Error('Invalid EC key');
+  const config=proto(params);
+  // Tink EcdsaSignatureEncoding: IEEE_P1363=1, DER=2.
+  if(config.get(1)!==3 || config.get(2)!==2 || config.get(3)!==2)throw new Error('Unsupported EC parameters');
+  const coordinate=(input:Uint8Array)=>{
+    const n=input.length===33 && input[0]===0 ? input.slice(1) : input;
+    if(n.length!==32)throw new Error('Invalid P-256 coordinate');
+    return base64url(n);
+  };
+  return crypto.subtle.importKey('jwk',{kty:'EC',crv:'P-256',x:coordinate(x),y:coordinate(y),ext:true},{name:'ECDSA',namedCurve:'P-256'},false,['verify']);
+}
 export async function verifyGoogleSignature(raw: Uint8Array, header: string, keyset: Keyset): Promise<boolean> {
   try {
     const signed=bytes(header);
@@ -39,11 +53,7 @@ export async function verifyGoogleSignature(raw: Uint8Array, header: string, key
     const keyId=new DataView(signed.buffer,signed.byteOffset, signed.byteLength).getUint32(1);
     const entry=keyset.key.find(k=>k.keyId===keyId && k.status==='ENABLED' && k.outputPrefixType==='TINK');
     if(!entry || entry.keyData.typeUrl!=='type.googleapis.com/google.crypto.tink.EcdsaPublicKey')return false;
-    const key=proto(bytes(entry.keyData.value)), params=key.get(2), x=key.get(3), y=key.get(4);
-    if((key.get(1)??0)!==0 || !(params instanceof Uint8Array) || !(x instanceof Uint8Array) || !(y instanceof Uint8Array))return false;
-    const config=proto(params);
-    if(config.get(1)!==3 || config.get(2)!==2 || config.get(3)!==1 || x.length!==32 || y.length!==32)return false;
-    const publicKey=await crypto.subtle.importKey('jwk',{kty:'EC',crv:'P-256',x:base64url(x),y:base64url(y),ext:true},{name:'ECDSA',namedCurve:'P-256'},false,['verify']);
+    const publicKey = await importGooglePublicKey(entry.keyData.value);
     return crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},publicKey,derToRaw(signed.slice(5)),new Uint8Array(raw));
   } catch {return false;}
 }
